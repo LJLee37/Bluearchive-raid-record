@@ -17,7 +17,7 @@
 
 **v5.0 변경 요약**
 
-1. **Tier enum 제거**: 인게임에 "플래티넘/골드/실버/브론즈" 티어 시스템은 존재하지 않음. 실제로는 **등수 구간(Rank Bracket)** 기반 보상 체계. `tier Tier?` 필드를 `rankBracket Int?`로 대체, enum 삭제.
+1. **Tier enum 복구**: 인게임에 등수 구간별 PLATINUM/GOLD/SILVER/BRONZE 티어가 존재함을 확인. v4.0의 `Tier` enum을 복구하고 서버별(Global/JP) 등수 구간 기준을 명시. 등수→티어 자동 변환은 앱 로직에서 Region 기반으로 처리.
 2. **조력자 스탯 유추 알고리즘 구체화**: SchaleDB 스탯 테이블 기반 역산 로직의 구체적 설계를 `§4.4`에 추가.
 3. **점수 범위 서버사이드 검증**: 보스/난이도별 HP 기반 최대 점수 제한 로직을 `§4.7`로 신설.
 4. **마스터 데이터 Seed 전략 구체화**: SchaleDB JSON 파싱 → Prisma seed 투입 파이프라인을 `§9`에 상세 기술.
@@ -97,20 +97,20 @@
 | 조력자 | 도전당 1회 사용, 내 학생과 별개 계산 |
 | 조력자 + 본인 | 같은 학생을 내 학생 + 조력자로 각각 1회씩 사용 가능 |
 
-**랭킹 & 보상 체계 (v5.0 수정)**
+**랭킹 & 보상 체계**
 
-인게임에 "플래티넘/골드" 같은 명칭의 티어 시스템은 존재하지 않는다.
-시즌 종료 시 **최종 등수(Rank)**에 따라 **등수 구간(Rank Bracket)** 기반으로 보상이 지급된다.
+시즌 종료 시 **최종 등수(Rank)**에 따라 **티어(Tier)**가 결정되고, 티어별로 보상이 지급된다.
+서버별(Global/JP) 등수 구간이 다르므로 주의.
 
-| 구간 | 등수 범위 | 비고 |
+| 티어 | Global(KR) 등수 범위 | JP 등수 범위 |
 |---|---|---|
-| 1 | 1 ~ 20,000 | 최상위 |
-| 2 | 20,001 ~ 120,000 | |
-| 3 | 120,001 ~ 240,000 | |
-| 4 | 240,001 ~ | 나머지 |
+| PLATINUM | 1 ~ 12,000 | 1 ~ 20,000 |
+| GOLD | 12,001 ~ 55,000 | 20,001 ~ 120,000 |
+| SILVER | 55,001 ~ 100,000 | 120,001 ~ 240,000 |
+| BRONZE | 100,001 ~ | 240,001 ~ |
 
-> 구간 크기는 서버(JP/Global)에 따라 다를 수 있으며, Torment 난이도 도입 이후 JP에서 구간이 확대되었다.
-> DB에는 `rank Int?` (최종 등수)와 `rankBracket Int?` (1~4 구간)을 저장한다.
+> DB에는 `rank Int?` (최종 등수)와 `tier Tier?` (결과 티어)를 저장한다.
+> 등수→티어 자동 변환은 앱 로직에서 Region(GLOBAL/JP) 기반으로 처리한다.
 
 -----
 
@@ -230,7 +230,7 @@ SchaleDB GitHub 리포가 2025년 6월에 아카이브되었으나 schaledb.com 
 - 시즌 (날짜 기반 자동 감지 또는 직접 선택)
 - 최종 점수
 - 최종 등수 (선택, 시즌 종료 후 업데이트 가능)
-- 등수 구간 (1~4, 시즌 종료 후 자동 계산 또는 수동 입력)
+- 티어 (플래티넘/골드/실버/브론즈, 시즌 종료 후. 등수 입력 시 서버 기준으로 자동 계산)
 - 메모
 
 총력전 전용:
@@ -252,7 +252,7 @@ SchaleDB GitHub 리포가 2025년 6월에 아카이브되었으나 schaledb.com 
 #### 기록 열람
 
 - 시즌별 타임라인 뷰
-- 보스별, 지형별, 등수/구간별 필터링
+- 보스별, 지형별, 등수/티어별 필터링
 - 최고점 / 최근 기록 카드
 - 점수 추이 라인 차트 (시즌 × 점수)
 - 등수 추이 차트
@@ -445,8 +445,8 @@ enum ArmorType { LIGHT HEAVY SPECIAL ELASTIC COMPOSITE }
 enum Terrain { INDOOR OUTDOOR STREET }
 enum Region { GLOBAL JP }
 enum Difficulty { NORMAL HARD VERY_HARD HARDCORE EXTREME INSANE TORMENT LUNATIC }
+enum Tier { PLATINUM GOLD SILVER BRONZE }
 enum GearType { HAT GLOVES SHOES HAIRPIN BADGE BAG WATCH CHARM NECKLACE }
-// ※ v5.0: Tier enum 삭제 — 인게임에 티어 시스템 없음, 등수 구간제(rankBracket)로 대체
 
 // ══════════════════════════════════════════
 // 마스터 데이터 (정적, 관리자 제어)
@@ -630,7 +630,7 @@ model TotalAssaultRecord {
   difficulty     Difficulty
   finalScore     BigInt
   rank           Int?                // 최종 등수 (시즌 종료 후 업데이트)
-  rankBracket    Int?                // 등수 구간 (1~4, v5.0: tier→rankBracket)
+  tier           Tier?               // 플래티넘/골드/실버/브론즈 (등수 기반 자동 계산 또는 수동)
   notes          String?
   isFlagged      Boolean             @default(false)  // v5.0: 이상 데이터 플래그
   recordedAt     DateTime            @default(now())
@@ -665,7 +665,7 @@ model GrandAssaultRecord {
 
   finalScore     BigInt
   rank           Int?
-  rankBracket    Int?                  // v5.0: tier→rankBracket
+  tier           Tier?                 // 플래티넘/골드/실버/브론즈
   notes          String?
   isFlagged      Boolean              @default(false)  // v5.0: 이상 데이터 플래그
   recordedAt     DateTime              @default(now())
@@ -827,7 +827,7 @@ CREATE INDEX idx_alternate_forms_alt     ON alternate_forms(alternate_student_id
 3. **장비 종류는 마스터에 고정, 유저 데이터에는 티어만** → 입력 필드 절감, 데이터 정합성
 4. **스냅샷 저장**: PartyMember는 UserStudent의 복사본으로 독립 저장 (외래키 참조 아님)
 5. **Region: GLOBAL / JP** (KR = GLOBAL 통일)
-6. **v5.0: Tier enum 삭제** → `rankBracket Int?`로 대체 (인게임에 티어 명칭 없음, 등수 구간제)
+6. **Tier enum**: PLATINUM/GOLD/SILVER/BRONZE 4종. 서버별 등수 구간이 다르므로 (Global: 12,000/55,000/100,000 경계, JP: 20,000/120,000/240,000 경계) 등수→티어 변환은 앱 로직에서 Region 기반으로 처리
 7. **v5.0: Boss.hpByDifficulty 추가** → 점수 범위 검증용 난이도별 HP 데이터
 8. **v5.0: isFlagged 필드 추가** → 이상 데이터 자동 플래그, 메타 통계 품질 관리
 9. **커뮤니티 테이블 (Like, Bookmark) 보류** → Phase 6 이후
@@ -853,7 +853,7 @@ POST   /api/records/grand            # 대결전 기록 생성 (difficultyMax + 
 GET    /api/records/:id              # 기록 상세
 PATCH  /api/records/:id              # 기록 수정
 DELETE /api/records/:id              # 기록 삭제
-PATCH  /api/records/:id/rank         # 시즌 종료 후 등수/구간 업데이트
+PATCH  /api/records/:id/rank         # 시즌 종료 후 등수/티어 업데이트
 
 [파티]
 GET    /api/parties                  # 내 파티 목록
@@ -1136,7 +1136,7 @@ data/
 - failureTags 실패 원인 태그
 - YouTube embed 미리보기
 - 기록 열람 (필터링, 점수 추이 차트)
-- 시즌 종료 후 등수/구간 입력
+- 시즌 종료 후 등수/티어 입력
 
 ### Phase 5 — 대시보드 & 메타 분석 (2~3주)
 
@@ -1327,6 +1327,7 @@ ba-raid-tracker/
 │   ├── auth.ts
 │   ├── stat-calculator.ts        # v5.0: 조력자 스탯 유추 알고리즘
 │   ├── score-validator.ts        # v5.0: 점수 범위 검증 로직
+│   ├── tier-calculator.ts        # v5.0: 등수 + Region → Tier 자동 변환
 │   └── validations/              # Zod 스키마 (프론트/백 공유)
 ├── data/
 │   ├── scripts/                  # v5.0: SchaleDB 파싱 스크립트
