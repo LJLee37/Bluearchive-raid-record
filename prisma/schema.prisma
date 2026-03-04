@@ -1,0 +1,474 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ══════════════════════════════════════════
+// Enum
+// ══════════════════════════════════════════
+
+enum Role {
+  STRIKER
+  SPECIAL
+}
+
+enum StudentClass {
+  DEALER
+  TANK
+  HEALER
+  SUPPORTER
+  TACTICAL_SUPPORT
+}
+
+enum AttackType {
+  EXPLOSIVE
+  PIERCING
+  MYSTIC
+  SONIC
+}
+
+enum ArmorType {
+  LIGHT
+  HEAVY
+  SPECIAL
+  ELASTIC
+  COMPOSITE
+  NORMAL
+}
+
+enum Terrain {
+  INDOOR
+  OUTDOOR
+  STREET
+}
+
+enum Region {
+  GLOBAL
+  JP
+}
+
+enum Difficulty {
+  NORMAL
+  HARD
+  VERY_HARD
+  HARDCORE
+  EXTREME
+  INSANE
+  TORMENT
+  LUNATIC
+}
+
+enum Tier {
+  PLATINUM
+  GOLD
+  SILVER
+  BRONZE
+}
+
+enum GearType {
+  HAT
+  GLOVES
+  SHOES
+  HAIRPIN
+  BADGE
+  BAG
+  WATCH
+  CHARM
+  NECKLACE
+}
+
+// ══════════════════════════════════════════
+// 마스터 데이터 (정적, 관리자 제어)
+// ══════════════════════════════════════════
+
+model Student {
+  id           String       @id // "shiroko", "mika_swimsuit" 등 slug
+  schaleDbId   Int          @unique // SchaleDB 원본 숫자 ID (이미지 URL 등에 사용)
+  nameKo       String
+  nameEn       String
+  school       String
+  role         Role
+  studentClass StudentClass
+  attackType   AttackType
+  armorType    ArmorType
+  iconUrl      String
+  isLimited    Boolean      @default(false)
+
+  // 고정 장비 슬롯 정보 (유저 테이블에는 티어만 저장)
+  gear1Type GearType
+  gear2Type GearType
+  gear3Type GearType
+
+  // 이격 관계 (1:N) — 본체가 여러 이격을 가질 수 있음
+  baseFormLinks    AlternateForm[] @relation("BaseStudent")
+  alternateFormLink AlternateForm?  @relation("AlternateStudent")
+
+  rosterMembers UserStudent[]
+  partyMembers  PartyMember[]
+
+  @@map("students")
+}
+
+// 본체 ↔ 이격 관계 테이블 (본체 1 : 이격 N)
+model AlternateForm {
+  id                 String  @id @default(cuid())
+  baseStudentId      String // @unique 없음 → 본체 1:N 이격 지원
+  baseStudent        Student @relation("BaseStudent", fields: [baseStudentId], references: [id])
+  alternateStudentId String  @unique
+  alternateStudent   Student @relation("AlternateStudent", fields: [alternateStudentId], references: [id])
+  label              String? // "수영복", "체육복" 등
+
+  @@unique([baseStudentId, alternateStudentId])
+  @@index([baseStudentId])
+  @@map("alternate_forms")
+}
+
+model Boss {
+  id         String    @id // "binah_outdoor" (지형 분리)
+  nameKo     String
+  nameEn     String
+  terrain    Terrain
+  attackType AttackType
+  armorType  ArmorType
+  iconUrl    String
+  isReleased Boolean   @default(true)
+
+  // v5.0: 난이도별 HP 데이터 (점수 범위 검증용)
+  // JSON 형태: { "NORMAL": 1000000, "HARD": 5000000, ... }
+  hpByDifficulty Json?
+
+  totalAssaultSeasons TotalAssaultSeason[]
+  grandAssaultSeasons GrandAssaultSeason[]
+
+  @@map("bosses")
+}
+
+model TotalAssaultSeason {
+  id           Int    @id @default(autoincrement())
+  seasonNumber Int
+  bossId       String
+  boss         Boss   @relation(fields: [bossId], references: [id])
+  region       Region @default(GLOBAL)
+  startAt      DateTime
+  endAt        DateTime
+
+  records TotalAssaultRecord[]
+
+  @@unique([seasonNumber, region])
+  @@map("total_assault_seasons")
+}
+
+model GrandAssaultSeason {
+  id           Int    @id @default(autoincrement())
+  seasonNumber Int
+  bossId       String
+  boss         Boss   @relation(fields: [bossId], references: [id])
+  region       Region @default(GLOBAL)
+  startAt      DateTime
+  endAt        DateTime
+
+  armorSlots GrandAssaultArmorSlot[]
+  records    GrandAssaultRecord[]
+
+  @@unique([seasonNumber, region])
+  @@map("grand_assault_seasons")
+}
+
+model GrandAssaultArmorSlot {
+  id            String             @id @default(cuid())
+  seasonId      Int
+  season        GrandAssaultSeason @relation(fields: [seasonId], references: [id])
+  slotIndex     Int // 0, 1, 2
+  armorType     ArmorType
+  difficultyMax Difficulty // TORMENT 또는 INSANE (서버사이드 검증)
+
+  attempts GrandAssaultAttempt[]
+
+  @@unique([seasonId, slotIndex])
+  @@map("grand_assault_armor_slots")
+}
+
+// ══════════════════════════════════════════
+// 유저 데이터
+// ══════════════════════════════════════════
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String?  @unique
+  image     String?
+  discordId String?  @unique
+  googleId  String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roster              UserStudent[]
+  totalAssaultRecords TotalAssaultRecord[]
+  grandAssaultRecords GrandAssaultRecord[]
+  parties             Party[]
+  tactics             Tactic[]
+  accounts            Account[] // NextAuth 필수
+  sessions            Session[] // NextAuth 필수
+
+  @@map("users")
+}
+
+// NextAuth.js v5 필수 테이블
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ── 학생 명부 (Roster) ────────────────────
+model UserStudent {
+  id                 String  @id @default(cuid())
+  userId             String
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId          String
+  student            Student @relation(fields: [studentId], references: [id])
+
+  level              Int
+  starLevel          Int
+  uniqueStarLevel    Int?
+  exSkillLevel       Int
+  basicSkillLevel    Int
+  enhancedSkillLevel Int
+  subSkillLevel      Int
+  gear1Tier          Int? // 종류는 Student 마스터 참조, 여기는 티어만
+  gear2Tier          Int?
+  gear3Tier          Int?
+  abilityUnlockAtk   Int     @default(0)
+  abilityUnlockHp    Int     @default(0)
+  abilityUnlockHeal  Int     @default(0)
+  bondLevel          Int     @default(1)
+  elephBondLevels    Json?
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, studentId])
+  @@map("user_students")
+}
+
+// ══════════════════════════════════════════
+// 기록 (Records & Attempts)
+// ══════════════════════════════════════════
+
+model TotalAssaultRecord {
+  id         String             @id @default(cuid())
+  userId     String
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seasonId   Int
+  season     TotalAssaultSeason @relation(fields: [seasonId], references: [id])
+
+  difficulty Difficulty
+  finalScore BigInt
+  rank       Int? // 최종 등수 (시즌 종료 후 업데이트)
+  tier       Tier? // 플래티넘/골드/실버/브론즈 (등수 기반 자동 계산 또는 수동)
+  notes      String?
+  isFlagged  Boolean            @default(false) // v5.0: 이상 데이터 플래그
+  recordedAt DateTime           @default(now())
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  parties TotalAssaultParty[]
+  tactics Tactic[]
+
+  @@index([userId, seasonId])
+  @@map("total_assault_records")
+}
+
+model TotalAssaultParty {
+  id         String             @id @default(cuid())
+  recordId   String
+  record     TotalAssaultRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  partyId    String
+  party      Party              @relation(fields: [partyId], references: [id])
+  partyOrder Int
+
+  @@unique([recordId, partyOrder])
+  @@map("total_assault_parties")
+}
+
+model GrandAssaultRecord {
+  id         String             @id @default(cuid())
+  userId     String
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seasonId   Int
+  season     GrandAssaultSeason @relation(fields: [seasonId], references: [id])
+
+  finalScore BigInt
+  rank       Int?
+  tier       Tier? // 플래티넘/골드/실버/브론즈
+  notes      String?
+  isFlagged  Boolean            @default(false) // v5.0: 이상 데이터 플래그
+  recordedAt DateTime           @default(now())
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  attempts GrandAssaultAttempt[]
+  tactics  Tactic[]
+
+  @@index([userId, seasonId])
+  @@map("grand_assault_records")
+}
+
+model GrandAssaultAttempt {
+  id          String                @id @default(cuid())
+  recordId    String
+  record      GrandAssaultRecord    @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  armorSlotId String
+  armorSlot   GrandAssaultArmorSlot @relation(fields: [armorSlotId], references: [id])
+
+  difficulty Difficulty
+  score      BigInt
+
+  parties GrandAssaultParty[]
+
+  @@unique([recordId, armorSlotId])
+  @@map("grand_assault_attempts")
+}
+
+model GrandAssaultParty {
+  id         String              @id @default(cuid())
+  attemptId  String
+  attempt    GrandAssaultAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  partyId    String
+  party      Party               @relation(fields: [partyId], references: [id])
+  partyOrder Int
+
+  @@unique([attemptId, partyOrder])
+  @@map("grand_assault_parties")
+}
+
+// ══════════════════════════════════════════
+// 파티 편성 및 멤버 (스냅샷 저장)
+// ══════════════════════════════════════════
+
+model Party {
+  id          String  @id @default(cuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+
+  startingSkills Int[] // 손패 고정 인덱스 배열 (예: [0, 2, 4])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members             PartyMember[]
+  totalAssaultParties TotalAssaultParty[]
+  grandAssaultParties GrandAssaultParty[]
+  tactics             Tactic[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("parties")
+}
+
+model PartyMember {
+  id        String  @id @default(cuid())
+  partyId   String
+  party     Party   @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  slot      Int // 0~3: 스트라이커, 4~5: 스페셜
+  isSupport Boolean @default(false)
+
+  // ── Snapshot 스탯 (명부에서 복사, 독립 저장) ──
+  level              Int
+  starLevel          Int
+  uniqueStarLevel    Int?
+  exSkillLevel       Int
+  basicSkillLevel    Int
+  enhancedSkillLevel Int
+  subSkillLevel      Int
+  gear1Tier          Int? // 종류는 Student 마스터 참조, 여기는 티어만
+  gear2Tier          Int?
+  gear3Tier          Int?
+  abilityUnlockAtk   Int     @default(0)
+  abilityUnlockHp    Int     @default(0)
+  abilityUnlockHeal  Int     @default(0)
+  bondLevel          Int     @default(1)
+  elephBondLevels    Json?
+
+  // ── 조력자 전용 스탯 ──
+  supportAtk     Int?
+  supportDef     Int?
+  supportHp      Int?
+  isStatInferred Boolean @default(false)
+
+  @@unique([partyId, slot])
+  @@index([studentId])
+  @@map("party_members")
+}
+
+// ══════════════════════════════════════════
+// 택틱 노트 (하이브리드 타임라인)
+// ══════════════════════════════════════════
+
+model Tactic {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  totalAssaultRecordId String?
+  totalAssaultRecord   TotalAssaultRecord? @relation(fields: [totalAssaultRecordId], references: [id])
+  grandAssaultRecordId String?
+  grandAssaultRecord   GrandAssaultRecord? @relation(fields: [grandAssaultRecordId], references: [id])
+  partyId              String?
+  party                Party?              @relation(fields: [partyId], references: [id])
+
+  title       String
+  videoUrl    String?
+  content     String // Tiptap JSON (리치텍스트)
+  failureTags String[] // 실패 원인 태그
+
+  // 하이브리드 타임라인
+  // [{ time: "02:45", cost: 9.5, slot: 0, action: "EX 사용", note: "크리 리트" }]
+  timeline Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tactics")
+}
