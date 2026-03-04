@@ -77,7 +77,7 @@
 | ---- | ---- |
 | [`plan.md`](./plan.md) | 통합 기획서 v5.1 — 도메인 지식, 스키마, API, UI, Phase 계획 등 14개 섹션 |
 | [`DEVLOG.md`](./DEVLOG.md) | 개발 로그 — Phase별 작업 기록, 변경사항, 주목할 점 |
-| [`AI_RULES.md`](./AI_RULES.md) | AI 에이전트 및 Git 컨벤션 규칙 |
+| [`AI_RULES.md`](./AI_RULES.md) | AI 에이전트 행동 원칙 — Git 컨벤션, sudo 권한 제약, 임시 디렉토리 정책, 작업 로그 기록 규칙 |
 
 ---
 

@@ -64,3 +64,45 @@ This file outlines the mandatory protocols and conventions for AI agents and dev
 1.  **Context Check:** Always run `ls -F` and `git status` to understand the current directory state before taking action.
 2.  **Safety:** Do not delete or overwrite existing configuration files without explicit user confirmation.
 3.  **Verification:** After writing code, verify syntax or run build commands if applicable before committing.
+
+## 5. System Privileges & Environment Constraints
+
+### sudo 권한 없음
+
+- AI 에이전트는 **`sudo` 권한을 보유하지 않는다.** `sudo`가 포함된 명령을 직접 실행해서는 안 된다.
+- `sudo`가 필요한 작업이 발생할 경우:
+  1. 왜 `sudo`가 필요한지 **사유를 사용자에게 명확히 설명**한다.
+  2. 실행해야 할 **구체적인 명령어를 제시**한다.
+  3. **사용자가 직접 해당 명령을 실행**하도록 안내한다.
+- 예시:
+  - ❌ `sudo apt install postgresql` (AI가 직접 실행)
+  - ✅ "PostgreSQL 설치가 필요합니다. 다음 명령을 직접 실행해 주세요: `sudo apt install postgresql`"
+
+### 임시 디렉토리 정책
+
+- 임시 파일이나 디렉토리가 필요한 경우, **프로젝트 외부 경로를 사용하지 않는다.**
+  - ❌ `/tmp/`, `/var/tmp/`, `~/tmp/` 등 시스템/사용자 홈 경로 사용 금지
+  - ✅ 프로젝트 루트 하위에 `.tmp/` 또는 `tmp/` 디렉토리를 생성하여 사용
+- 임시 디렉토리를 생성할 경우 `.gitignore`에 해당 경로가 포함되어 있는지 확인하고, 없으면 추가한다.
+- 작업 완료 후 불필요한 임시 파일은 정리(삭제)한다.
+
+## 6. Work Logging (작업 로그 기록)
+
+- 각 작업(세션)이 완료되면 **`DEVLOG.md`에 로그를 기록**한다.
+- 로그에 포함할 항목:
+  1. **타임스탬프** (KST 기준, `YYYY-MM-DD HH:MM` 형식)
+  2. **수행한 작업 요약** — 무엇을 했는지 간결하게 기술
+  3. **주목할 점** — 향후 작업에 영향을 줄 수 있는 변경사항, 주의사항, 발견 사항
+- 작업 내용에 따라 `README.md`, `plan.md` 등 관련 문서에도 필요한 업데이트를 반영한다.
+- 로그 포맷 예시:
+
+```markdown
+### YYYY-MM-DD HH:MM (KST) — 작업 제목
+
+**작업 내용:**
+- 변경 1
+- 변경 2
+
+**주목할 점:**
+- 특이사항 1
+```
