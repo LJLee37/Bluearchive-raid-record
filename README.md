@@ -37,12 +37,12 @@
 
 | 레이어              | 기술                                          |
 | ------------------- | --------------------------------------------- |
-| **프레임워크**      | Next.js 14 (App Router), TypeScript           |
-| **스타일링**        | Tailwind CSS + shadcn/ui                      |
+| **프레임워크**      | Next.js 16 (App Router), TypeScript           |
+| **스타일링**        | Tailwind CSS v4 + shadcn/ui                   |
 | **클라이언트 상태** | Zustand (글로벌) + TanStack Query (서버 상태) |
 | **폼/검증**         | React Hook Form + Zod (프론트/백 공유)        |
 | **차트/에디터**     | Recharts, Tiptap                              |
-| **ORM**             | Prisma                                        |
+| **ORM**             | Prisma v7 (PG adapter)                        |
 | **데이터베이스**    | PostgreSQL (Supabase)                         |
 | **캐시**            | Upstash Redis                                 |
 | **인증**            | NextAuth.js v5 (Discord OAuth + Google OAuth) |
@@ -56,47 +56,42 @@
 
 ## 프로젝트 상태
 
-> **현재: 기획 완료 / Phase 1 개발 준비 중**
+> **현재: Phase 1 코드 구현 완료 / 외부 서비스 연결 대기 중** (2026-03-04)
 
-| Phase | 내용                                                       | 기간 (예상) |
-| ----- | ---------------------------------------------------------- | ----------- |
-| 1     | 기반 인프라, Prisma 스키마, 인증, SchaleDB Seed 파이프라인 | 2~3주       |
-| 2     | 학생 명부 (Roster) 시스템                                  | 2주         |
-| 3     | 파티 빌더, 스냅샷 기록, 검증 로직 **(핵심)**               | 3주         |
-| 4     | 택틱 노트, 기록 열람, 차트                                 | 2주         |
-| 5     | 개인 대시보드, 메타 분석, Redis 캐싱                       | 2~3주       |
-| 6     | 모바일 QA, 다크모드, SEO, 모니터링, 배포                   | 1주         |
+| Phase | 내용                                                       | 기간 (예상) | 상태         |
+| ----- | ---------------------------------------------------------- | ----------- | ------------ |
+| 1     | 기반 인프라, Prisma 스키마, 인증, SchaleDB Seed 파이프라인 | 2~3주       | **코드 완료** |
+| 2     | 학생 명부 (Roster) 시스템                                  | 2주         | 대기         |
+| 3     | 파티 빌더, 스냅샷 기록, 검증 로직 **(핵심)**               | 3주         | 대기         |
+| 4     | 택틱 노트, 기록 열람, 차트                                 | 2주         | 대기         |
+| 5     | 개인 대시보드, 메타 분석, Redis 캐싱                       | 2~3주       | 대기         |
+| 6     | 모바일 QA, 다크모드, SEO, 모니터링, 배포                   | 1주         | 대기         |
 
 총 예상 기간: **12~14주** (1인 개발 기준)
 
 ---
 
-## 기획 문서
+## 문서
 
-상세한 프로젝트 기획은 [`plan.md`](./plan.md)를 참조. 아래 항목들이 포함되어 있다.
-
-1. 프로젝트 개요 및 게임 도메인 지식
-2. 기술 스택 선택 근거
-3. 시스템 아키텍처 및 렌더링 전략
-4. 핵심 기능 명세 (Roster, 파티 빌더, 조력자 스탯 유추, 타임라인, 점수 검증)
-5. 데이터베이스 스키마 (Prisma) 전문
-6. API 엔드포인트 설계
-7. 페이지 구조 및 UI/UX 와이어프레임
-8. 인증 및 권한 매트릭스
-9. 마스터 데이터 Seed 전략 (SchaleDB 파이프라인)
-10. 개발 Phase 계획
-11. 배포 및 인프라
-12. 고려사항 및 리스크
-13. 경쟁 사이트 분석 및 차별화
-14. 학생 스펙 저장 항목 상세
+| 문서 | 설명 |
+| ---- | ---- |
+| [`plan.md`](./plan.md) | 통합 기획서 v5.1 — 도메인 지식, 스키마, API, UI, Phase 계획 등 14개 섹션 |
+| [`DEVLOG.md`](./DEVLOG.md) | 개발 로그 — Phase별 작업 기록, 변경사항, 주목할 점 |
+| [`AI_RULES.md`](./AI_RULES.md) | AI 에이전트 및 Git 컨벤션 규칙 |
 
 ---
 
 ## 시작하기
 
-> 현재 기획 단계로 실행 가능한 코드가 없습니다. Phase 1 개발이 시작되면 이 섹션이 업데이트됩니다.
+### 사전 요구사항
 
-개발 시작 후 예상되는 셋업 절차:
+- Node.js 22+
+- pnpm 10+
+- Supabase 프로젝트 (PostgreSQL)
+- Discord OAuth 앱 (Discord Developer Portal)
+- Google OAuth 앱 (Google Cloud Console)
+
+### 셋업
 
 ```bash
 # 의존성 설치
@@ -104,16 +99,35 @@ pnpm install
 
 # 환경 변수 설정
 cp .env.example .env.local
+# .env.local 파일을 편집하여 DB URL, OAuth 키 등을 입력
+
+# Prisma Client 생성
+pnpm prisma generate
 
 # DB 마이그레이션
 pnpm prisma migrate dev
 
-# 마스터 데이터 시드
-pnpm seed:fetch && pnpm seed:parse && pnpm db:seed
+# SchaleDB 마스터 데이터 시드
+pnpm seed:fetch    # SchaleDB에서 학생/보스 JSON 다운로드
+pnpm seed:parse    # 다운로드된 데이터를 Prisma 형식으로 변환
+pnpm db:seed       # PostgreSQL에 마스터 데이터 투입
 
 # 개발 서버 실행
 pnpm dev
 ```
+
+### 주요 스크립트
+
+| 스크립트           | 설명                                        |
+| ------------------ | ------------------------------------------- |
+| `pnpm dev`         | 개발 서버 실행 (Turbopack)                  |
+| `pnpm build`       | 프로덕션 빌드                               |
+| `pnpm lint`        | ESLint 검사                                 |
+| `pnpm format`      | Prettier 포맷팅                             |
+| `pnpm typecheck`   | TypeScript 타입 검사                        |
+| `pnpm seed:fetch`  | SchaleDB JSON 다운로드 → `data/cache/`      |
+| `pnpm seed:parse`  | 다운로드 데이터 파싱 → `data/cache/parsed-*` |
+| `pnpm db:seed`     | 파싱된 데이터를 DB에 upsert                 |
 
 ---
 
