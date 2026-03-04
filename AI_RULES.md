@@ -65,6 +65,24 @@ This file outlines the mandatory protocols and conventions for AI agents and dev
 2.  **Safety:** Do not delete or overwrite existing configuration files without explicit user confirmation.
 3.  **Verification:** After writing code, verify syntax or run build commands if applicable before committing.
 
+## 4.1 작업 완료 후 Git 반영 절차 (필수)
+
+모든 작업 세션이 끝나면 다음 절차를 반드시 수행한다:
+
+1. **브랜치 생성**: `master`에서 직접 커밋하지 않는다. 작업 내용에 맞는 브랜치를 생성한다.
+   - 브랜치 명명 규칙은 섹션 2를 따른다.
+2. **커밋**: 변경된 파일을 스테이징하고 섹션 3의 커밋 메시지 규칙에 따라 커밋한다.
+3. **푸시**: 브랜치를 원격(`origin`)에 푸시한다.
+4. **PR 생성**: `gh pr create`로 Pull Request를 생성한다.
+   - PR 제목은 커밋 메시지 규칙을 따른다.
+   - PR 본문에는 변경 내용 요약을 포함한다.
+5. **DEVLOG 기록**: 푸시 및 PR 생성 결과(PR 번호, URL)를 DEVLOG.md에 기록한다.
+
+### 예외
+
+- 작업이 단순 문서 수정(docs)이고 변경 범위가 매우 작을 경우, 사용자의 명시적 허락이 있으면 `master`에 직접 커밋할 수 있다.
+- 사용자가 명시적으로 커밋/푸시/PR을 하지 말라고 지시한 경우 생략한다.
+
 ## 5. System Privileges & Environment Constraints
 
 ### sudo 권한 없음
@@ -89,6 +107,7 @@ This file outlines the mandatory protocols and conventions for AI agents and dev
 ## 6. Work Logging (작업 로그 기록)
 
 - 각 작업(세션)이 완료되면 **`DEVLOG.md`에 로그를 기록**한다.
+- **타임스탬프 기록 전 필수**: `date '+%Y-%m-%d %H:%M'` 명령을 실행하여 실제 시각을 확인한다. 추론으로 시각을 작성하지 않는다.
 - 로그에 포함할 항목:
   1. **타임스탬프** (KST 기준, `YYYY-MM-DD HH:MM` 형식, 시·분 반드시 포함)
   2. **완료한 작업** — 이번 세션에서 AI가 완료한 항목을 체크리스트 형태로 기술
@@ -100,9 +119,37 @@ This file outlines the mandatory protocols and conventions for AI agents and dev
 ### TODO.md 동기화 (필수)
 
 - 세션 완료 시 반드시 **`TODO.md`를 DEVLOG와 함께 업데이트**한다.
-  - 이번 세션에서 완료된 항목: `[ ]` → `[x]` 로 체크
-  - 새로 발견된 작업 항목: 적절한 섹션에 추가
+  - 이번 세션에서 완료된 항목: **TODO.md에서 완전히 삭제**한다.
+    - 삭제된 항목의 이력은 DEVLOG.md의 "완료한 작업" 섹션에 기록한다.
+    - TODO.md에 `[x]` 체크 항목을 남기지 않는다.
+  - 새로 발견된 작업 항목: 적절한 섹션에 추가한다.
   - DEVLOG와 TODO.md는 항상 일관된 상태를 유지해야 한다.
+
+### TODO.md 구조 규칙
+
+TODO.md는 다음 구조를 유지한다:
+
+1. **긴급 / 현재 단계** — 지금 당장 해야 할 항목. 완료 즉시 삭제.
+2. **향후 계획** — 아직 시작하지 않은 Phase별 작업.
+3. **선택사항** — 낮은 우선순위 또는 미확정 항목.
+
+각 항목에는 담당자를 명시한다:
+
+- `[사용자]` — 사용자가 직접 수행해야 하는 작업 (외부 서비스 가입, OAuth 등록, 환경변수 설정 등)
+- `[AI]` — AI 에이전트가 수행할 작업 (코드 작성, 파일 수정 등)
+
+**항목 순서 규칙**: 같은 섹션(또는 하위 섹션) 내에서 `[사용자]` 항목을 `[AI]` 항목보다 **항상 위에** 배치한다.
+
+### 로그 순서 규칙
+
+- DEVLOG.md의 로그는 **내림차순(최신 항목이 파일 상단)**으로 유지한다.
+- 새 로그는 `# 개발 로그` 헤더 바로 아래, 기존 첫 번째 항목 위에 삽입한다.
+
+### 서브섹션(`###`) 사용 규칙
+
+- **동일 세션 내 연속 작업** (예: 코드 작성 직후 푸시/PR 생성)은 같은 `##` 항목의 `###` 서브섹션으로 기록한다.
+- **별개의 목적을 가진 작업**은 시간 간격이 짧더라도 독립된 `##` 항목으로 분리한다.
+- 서브섹션은 정렬 단위가 아니다. 상위 `##` 항목의 타임스탬프를 기준으로 정렬한다.
 
 ### 로그 포맷
 
