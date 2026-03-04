@@ -1,7 +1,8 @@
-# 블루아카이브 레이드 트래커 — 통합 기획서 v5.0
+# 블루아카이브 레이드 트래커 — 통합 기획서 v5.1
 
 > 작성일: 2026-03-03
-> 원본: v4.0 (v3.0 + v1.3 통합) → v5.0 보완
+> 최종 수정: 2026-03-04 (v5.1 — Phase 1 구현 결과 반영)
+> 원본: v4.0 (v3.0 + v1.3 통합) → v5.0 보완 → v5.1 구현 반영
 > 성격: 개인 기록 중심 → 공개 서비스 확장 가능한 웹 어플리케이션
 
 ---
@@ -13,7 +14,8 @@
 | v1.3     | 풀 스펙 기획 (공개 서비스 중심, 14섹션)                         |
 | v3.0     | 코어 아키텍처 재설계 (Roster, 스냅샷, 장비고정, 타임라인, 손패) |
 | v4.0     | v1.3 + v3.0 통합 (양쪽 장점 결합, AlternateForm 1:N 수정)       |
-| **v5.0** | **아래 5개 항목 보완**                                          |
+| v5.0     | 아래 5개 항목 보완                                              |
+| **v5.1** | **Phase 1 구현 결과 반영 (아래 4개 항목)**                      |
 
 **v5.0 변경 요약**
 
@@ -22,6 +24,13 @@
 3. **점수 범위 서버사이드 검증**: 보스/난이도별 HP 기반 최대 점수 제한 로직을 `§4.7`로 신설.
 4. **마스터 데이터 Seed 전략 구체화**: SchaleDB JSON 파싱 → Prisma seed 투입 파이프라인을 `§9`에 상세 기술.
 5. **v4.0의 원본 비교 분석 섹션(0절) 제거** → 변경 이력으로 대체.
+
+**v5.1 변경 요약 (Phase 1 구현 반영)**
+
+1. **Student.releasedAt 필드 제거**: SchaleDB에 출시일 데이터가 존재하지 않음. 스키마에서 제거.
+2. **ArmorType enum에 NORMAL 추가**: SchaleDB의 'Unarmed' 학생 및 일부 보스 방어타입 매핑 (기존 5종 → 6종).
+3. **Student.schaleDbId 필드 추가**: SchaleDB 원본 숫자 ID 저장 (`Int @unique`). 이미지 URL 구성 등 CDN 연동에 필수.
+4. **기술 스택 버전 갱신**: Next.js 14→16, Tailwind CSS v3→v4, Prisma v5→v7. Prisma v7은 `prisma.config.ts` + PG adapter 방식으로 구조 변경.
 
 ---
 
@@ -120,9 +129,9 @@
 
 ```
 [Frontend]
-- Framework:    Next.js 14 (App Router)
+- Framework:    Next.js 16 (App Router)          ← v5.1: 14→16 갱신
 - Language:     TypeScript
-- Styling:      Tailwind CSS + shadcn/ui
+- Styling:      Tailwind CSS v4 + shadcn/ui       ← v5.1: v3→v4 갱신
 - State:        Zustand (글로벌) + TanStack Query (서버 상태)
 - Form:         React Hook Form + Zod
 - Chart:        Recharts
@@ -130,7 +139,7 @@
 
 [Backend]
 - Runtime:      Next.js API Routes (Route Handlers)
-- ORM:          Prisma
+- ORM:          Prisma v7 (PG adapter)             ← v5.1: v5→v7 갱신
 - Validation:   Zod (프론트/백 공유 스키마)
 
 [Database & Services]
@@ -419,19 +428,19 @@ SchaleDB GitHub 리포가 2025년 6월에 아카이브되었으나 schaledb.com 
 
 ---
 
-## 5. 데이터베이스 스키마 (Prisma — v5.0)
+## 5. 데이터베이스 스키마 (Prisma — v5.1 구현 반영)
 
-_v4.0 대비 변경: `Tier` enum 제거, `tier` 필드 → `rankBracket` 필드, 점수 검증 관련 보스 HP 필드 추가_
+_v5.0 대비 변경: `Student.releasedAt` 제거, `ArmorType.NORMAL` 추가, `Student.schaleDbId` 추가, `AlternateForm` 관계 방향 수정, Prisma v7 datasource 구조 변경, NextAuth 테이블 명시_
 
 ```prisma
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  // v5.1: Prisma v7에서는 url/directUrl을 prisma.config.ts에서 설정
 }
 
 // ══════════════════════════════════════════
@@ -441,7 +450,7 @@ datasource db {
 enum Role { STRIKER SPECIAL }
 enum StudentClass { DEALER TANK HEALER SUPPORTER TACTICAL_SUPPORT }
 enum AttackType { EXPLOSIVE PIERCING MYSTIC SONIC }
-enum ArmorType { LIGHT HEAVY SPECIAL ELASTIC COMPOSITE }
+enum ArmorType { LIGHT HEAVY SPECIAL ELASTIC COMPOSITE NORMAL }  // v5.1: NORMAL 추가
 enum Terrain { INDOOR OUTDOOR STREET }
 enum Region { GLOBAL JP }
 enum Difficulty { NORMAL HARD VERY_HARD HARDCORE EXTREME INSANE TORMENT LUNATIC }
@@ -454,6 +463,7 @@ enum GearType { HAT GLOVES SHOES HAIRPIN BADGE BAG WATCH CHARM NECKLACE }
 
 model Student {
   id               String          @id  // "shiroko", "mika_swimsuit" 등 slug
+  schaleDbId       Int             @unique  // v5.1: SchaleDB 원본 숫자 ID (이미지 URL 등에 사용)
   nameKo           String
   nameEn           String
   school           String
@@ -463,16 +473,16 @@ model Student {
   armorType        ArmorType
   iconUrl          String
   isLimited        Boolean         @default(false)
-  releasedAt       DateTime
+  // v5.1: releasedAt 제거 (SchaleDB에 출시일 데이터 없음)
 
   // 고정 장비 슬롯 정보 (유저 테이블에는 티어만 저장)
   gear1Type        GearType
   gear2Type        GearType
   gear3Type        GearType
 
-  // 이격 관계 (1:N) — @unique 제거로 본체 1:N 이격 지원
-  baseFormLink     AlternateForm?  @relation("BaseStudent")
-  alternateLinks   AlternateForm[] @relation("AlternateStudent")
+  // v5.1: 이격 관계 방향 수정 — 본체(1):이격(N) 지원
+  baseFormLinks     AlternateForm[] @relation("BaseStudent")     // 본체로서의 이격 목록
+  alternateFormLink AlternateForm?  @relation("AlternateStudent") // 이격으로서의 본체 참조
 
   rosterMembers    UserStudent[]
   partyMembers     PartyMember[]
@@ -485,11 +495,12 @@ model AlternateForm {
   id                 String  @id @default(cuid())
   baseStudentId      String  // @unique 없음 → 본체 1:N 이격 지원
   baseStudent        Student @relation("BaseStudent", fields: [baseStudentId], references: [id])
-  alternateStudentId String
+  alternateStudentId String  @unique  // v5.1: @unique 추가 (이격은 하나의 본체만 가짐)
   alternateStudent   Student @relation("AlternateStudent", fields: [alternateStudentId], references: [id])
   label              String? // "수영복", "체육복" 등
 
   @@unique([baseStudentId, alternateStudentId])
+  @@index([baseStudentId])
   @@map("alternate_forms")
 }
 
@@ -583,8 +594,46 @@ model User {
   @@map("users")
 }
 
-// NextAuth 필수 테이블 (Account, Session, VerificationToken)
-// → NextAuth Prisma Adapter가 자동 생성하는 표준 스키마 사용
+// NextAuth.js v5 필수 테이블 (Prisma Adapter 표준)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
 
 // ── 학생 명부 (Roster) ────────────────────
 model UserStudent {
@@ -831,6 +880,11 @@ CREATE INDEX idx_alternate_forms_alt     ON alternate_forms(alternate_student_id
 7. **v5.0: Boss.hpByDifficulty 추가** → 점수 범위 검증용 난이도별 HP 데이터
 8. **v5.0: isFlagged 필드 추가** → 이상 데이터 자동 플래그, 메타 통계 품질 관리
 9. **커뮤니티 테이블 (Like, Bookmark) 보류** → Phase 6 이후
+10. **v5.1: Student.releasedAt 제거** → SchaleDB에 출시일 데이터 부재
+11. **v5.1: ArmorType.NORMAL 추가** → SchaleDB 'Unarmed' 학생(5명) 및 일부 보스 방어타입 매핑
+12. **v5.1: Student.schaleDbId 추가** → SchaleDB 숫자 ID 보존 (이미지 CDN URL 구성에 필수)
+13. **v5.1: AlternateForm 관계 방향 수정** → `alternateStudentId @unique` 추가로 이격→본체는 1:1, 본체→이격은 1:N 올바르게 표현
+14. **v5.1: Prisma v7 datasource** → `url`/`directUrl`을 `prisma.config.ts`로 분리, PG adapter 방식 클라이언트
 
 ---
 
@@ -1028,10 +1082,14 @@ GET    /api/users/me/stats           # 내 통계 요약
 SchaleDB는 블루아카이브의 가장 완전한 비공식 데이터베이스로, GitHub 리포(아카이브됨)와 웹사이트(운영 중) 양쪽에서 JSON 데이터를 제공한다.
 
 ```
-SchaleDB 데이터 구조:
-  /data/kr/students.json   — 학생 기본 정보, 스탯, 스킬
-  /data/kr/raids.json      — 총력전 보스 정보, 난이도별 HP
-  /data/kr/localization.json — 한국어/영어/일본어 이름
+SchaleDB 데이터 구조 (v5.1 조사 결과 반영):
+  /data/kr/students.min.json — 학생 기본 정보, 스탯, 스킬 (한국어 이름 포함)
+  /data/en/students.min.json — 학생 영어 이름 (Name 필드)
+  /data/kr/raids.min.json    — 총력전/대결전 보스 정보, 시즌 데이터
+  /data/en/raids.min.json    — 보스 영어 이름
+
+  ※ localization.json은 UI 용어만 포함, 학생/보스 개별 이름은 미포함
+  ※ 학생 영어 이름은 /data/en/students.min.json에서 별도 조회 필요
 ```
 
 ### 9.2 Seed 파이프라인
@@ -1059,21 +1117,25 @@ data/
 
 2. pnpm seed:parse
    → parse-students.ts: SchaleDB → Prisma Student 형식 변환
-     - id: PathName을 소문자 snake_case로 변환
-     - nameKo/nameEn: localization에서 추출
-     - role: STRIKER/SPECIAL 매핑
-     - studentClass: DEALER/TANK/HEALER/SUPPORTER/TACTICAL_SUPPORT 매핑
-     - attackType: BulletType → EXPLOSIVE/PIERCING/MYSTIC/SONIC 매핑
-     - armorType: ArmorType → LIGHT/HEAVY/SPECIAL/ELASTIC/COMPOSITE 매핑
-     - gear1Type/gear2Type/gear3Type: Equipment 슬롯 종류 매핑
-     - isLimited: Tags 필드에서 추출
-     - releasedAt: 출시일 매핑
-   → parse-bosses.ts: SchaleDB Raid → Prisma Boss 형식 변환
-     - id: PathName_Terrain 소문자 (예: binah_outdoor)
-     - terrain: Terrain 매핑
-     - hpByDifficulty: EnemyList의 HP 데이터 집계
-   → parse-alternate-forms.ts: 이격 관계 추출
-     - SchaleDB의 FamilyGroup 필드로 본체-이격 관계 파악
+      - id: PathName을 소문자 snake_case로 변환
+      - schaleDbId: SchaleDB 원본 숫자 ID 보존 (v5.1)
+      - nameKo: /data/kr/students.min.json의 Name 필드
+      - nameEn: /data/en/students.min.json의 Name 필드 (별도 파일)
+      - role: STRIKER/SPECIAL 매핑
+      - studentClass: DEALER/TANK/HEALER/SUPPORTER/TACTICAL_SUPPORT 매핑
+      - attackType: BulletType → EXPLOSIVE/PIERCING/MYSTIC/SONIC 매핑
+      - armorType: ArmorType → LIGHT/HEAVY/SPECIAL/ELASTIC/COMPOSITE/NORMAL 매핑 (v5.1: NORMAL 추가)
+      - gear1Type/gear2Type/gear3Type: Equipment 슬롯 종류 매핑
+      - isLimited: IsLimited[1] (Global 인덱스) — 1 또는 3이면 한정
+      - ※ releasedAt 제거 (SchaleDB에 출시일 데이터 없음, v5.1)
+    → parse-bosses.ts: SchaleDB Raid → Prisma Boss 형식 변환
+      - id: PathName_Terrain 소문자 (예: binah_outdoor)
+      - terrain: Terrain 매핑
+      - attackType: BulletTypeInsane 기준 매핑 (Insane+ 난이도의 실질적 공격 속성)
+      - hpByDifficulty: null 처리 (EnemyList는 적 ID만 제공, 실제 HP는 별도 소스 필요)
+    → parse-alternate-forms.ts: 이격 관계 추출
+      - SchaleDB의 FavorAlts 필드로 본체-이격 관계 파악 (양방향 참조)
+      - 본체 판별: PathName에 언더스코어 없음 = 본체 (휴리스틱)
 
 3. pnpm db:seed (= prisma db seed)
    → data/seed/index.ts 실행
@@ -1103,14 +1165,16 @@ data/
 
 ## 10. 개발 Phase 계획
 
-### Phase 1 — 기반 인프라 & 마스터 데이터 (2~3주)
+### Phase 1 — 기반 인프라 & 마스터 데이터 ✅ 코드 완료 (2026-03-04)
 
-- 프로젝트 초기 세팅 (Next.js + TypeScript + Tailwind + shadcn/ui)
-- Supabase 연결 + Prisma v5.0 스키마 마이그레이션
-- NextAuth.js Discord/Google OAuth 구현
-- **SchaleDB Seed 파이프라인 구축** (fetch → parse → seed, §9 참조)
-- 마스터 데이터 Seed 투입 (학생/보스/시즌, gearType, hpByDifficulty 포함)
-- 기본 레이아웃 (헤더, 사이드바, 반응형)
+- [x] 프로젝트 초기 세팅 (Next.js 16 + TypeScript + Tailwind v4 + shadcn/ui)
+- [x] Prisma v7 스키마 구현 (20개 모델, 10개 enum, PG adapter)
+- [x] NextAuth.js v5 Discord/Google OAuth 구현
+- [x] **SchaleDB Seed 파이프라인 구축** (fetch → parse → seed, 학생 238명 / 보스 20개 / 시즌 228개 / 이격 104개)
+- [x] 기본 레이아웃 (헤더, 사이드바, 반응형, 모바일 Sheet)
+- [ ] Supabase 프로젝트 생성 + DB 마이그레이션 (외부 서비스 설정 대기)
+- [ ] Discord/Google OAuth 앱 등록 (외부 서비스 설정 대기)
+- [ ] 실제 DB에 마스터 데이터 Seed 투입 검증
 
 ### Phase 2 — Roster(학생 명부) 시스템 (2주)
 
@@ -1348,4 +1412,4 @@ ba-raid-tracker/
 
 ---
 
-_문서 끝 — 다음 단계: Phase 1 개발 시작_
+_문서 끝 — Phase 1 코드 완료 (2026-03-04), 다음 단계: 외부 서비스 연결 후 Phase 2 시작_
