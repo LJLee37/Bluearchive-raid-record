@@ -30,6 +30,28 @@
 - 이제 TODO.md에는 `[x]` 항목이 존재하지 않는다. 완료 이력은 DEVLOG.md에서만 확인 가능.
 - `[사용자]` 태그 항목은 AI가 직접 실행할 수 없는 외부 서비스 작업임.
 
+## 2026-03-04 16:42 (KST) — Git 반영 절차 규칙 추가 및 PR 생성
+
+**완료한 작업:**
+
+- [x] `AI_RULES.md` 섹션 4.1 신규 추가: 작업 완료 후 Git 반영 절차 명시 (브랜치 생성 → 커밋 → 푸시 → PR 생성 → DEVLOG 기록)
+- [x] 브랜치 `docs/todo-management-rules` 생성 및 이번 세션 변경 파일(AI_RULES.md, DEVLOG.md, TODO.md) 커밋
+- [x] 원격 푸시 및 PR #9 생성: https://github.com/LJLee37/Bluearchive-raid-record/pull/9
+
+**사용자 직접 액션 필요:**
+
+- [ ] [사용자] PR #9 검토 및 머지
+
+**다음 AI 세션 할 일:**
+
+- [ ] 사용자가 Supabase/OAuth 설정 완료 후 `pnpm prisma migrate dev` + `pnpm dev` 동작 확인 지원
+- [ ] Phase 2 (학생 명부 시스템) 작업 시작
+
+**주목할 점:**
+
+- `AI_RULES.md`에 커밋/푸시/PR 규칙이 없어 이번 세션에서 Git 반영이 누락되었다. 섹션 4.1 추가로 해결.
+- 이후 모든 세션은 작업 완료 후 반드시 브랜치 → 커밋 → 푸시 → PR 순서를 따라야 한다.
+
 ---
 
 ## 2026-03-04 16:09 (KST) — AI 작업 로그 포맷 개선
