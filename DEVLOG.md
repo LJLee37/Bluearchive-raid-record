@@ -82,3 +82,28 @@ new PrismaClient({ adapter });
 - [ ] `pnpm prisma migrate dev`로 실제 DB 마이그레이션 실행
 - [ ] `pnpm seed:fetch && pnpm seed:parse && pnpm db:seed`로 마스터 데이터 투입 검증
 - [ ] `Boss.hpByDifficulty` 데이터 확보 방안 조사 (SchaleDB enemy 데이터 또는 수동 입력)
+
+---
+
+## 2026-03-04 13:50 (KST) — AI 행동 원칙 업데이트
+
+### 작업 내용
+
+`AI_RULES.md`에 2개 섹션을 신규 추가했다:
+
+| 섹션 | 제목 | 내용 |
+|------|------|------|
+| 5 | System Privileges & Environment Constraints | sudo 권한 제약, 임시 디렉토리 정책 |
+| 6 | Work Logging (작업 로그 기록) | 작업 완료 시 DEVLOG.md에 타임스탬프 포함 로그 기록 의무화 |
+
+**세부 변경:**
+- **sudo 권한 없음**: AI 에이전트가 sudo 명령을 직접 실행하지 않도록 명시. sudo가 필요한 경우 사유 설명 + 구체적 명령어 제시 + 사용자 직접 실행 안내 절차 규정.
+- **임시 디렉토리 정책**: `/tmp/` 등 프로젝트 외부 경로 사용 금지. 프로젝트 루트 하위 `.tmp/` 또는 `tmp/` 사용 의무화. `.gitignore` 확인 및 작업 후 정리 규정.
+- **작업 로그 기록**: 타임스탬프(KST), 작업 요약, 주목할 점을 포함한 로그 포맷 정의. README.md 등 관련 문서 동기화 의무.
+
+**브랜치:** `docs/ai-rules-update` (master 기반)
+
+### 주목할 점
+
+- 이 규칙은 향후 모든 AI 에이전트 세션에 적용된다. 새로운 세션 시작 시 `AI_RULES.md`를 반드시 참조해야 한다.
+- `README.md`의 문서 테이블에서 `AI_RULES.md` 설명을 업데이트하여 새 규칙 반영 여부를 확인해야 한다.
