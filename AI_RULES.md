@@ -90,7 +90,7 @@ This file outlines the mandatory protocols and conventions for AI agents and dev
 
 - 각 작업(세션)이 완료되면 **`DEVLOG.md`에 로그를 기록**한다.
 - 로그에 포함할 항목:
-  1. **타임스탬프** (KST 기준, `YYYY-MM-DD HH:MM` 형식)
+  1. **타임스탬프** (KST 기준, `YYYY-MM-DD HH:MM` 형식, 시·분 반드시 포함)
   2. **완료한 작업** — 이번 세션에서 AI가 완료한 항목을 체크리스트 형태로 기술
   3. **사용자 직접 액션 필요** — 사용자가 직접 해야 하는 항목과 그 이유를 명시 (sudo 명령, OAuth 앱 등록, 환경변수 설정, 외부 서비스 가입 등)
   4. **다음 AI 세션 할 일** — 다음 세션에서 AI가 이어서 할 작업 목록
